@@ -14,7 +14,6 @@ const IMPROVEMENT_PER_BLOCK = 0.07  // 7% pace improvement per block
 export function assessFeasibility(
   anchorPace:   number,   // PB pace (most reliable)
   targetPace:   number,   // dream goal
-  _deadlineWeeks?: number,
 ): FeasibilityReport {
   const gapPercent = ((anchorPace - targetPace) / anchorPace) * 100
   const blocksNeeded = gapPercent <= 0
@@ -168,7 +167,7 @@ export function generatePlan(input: GeneratePlanInput): TrainingPlan {
   const anchorPace = pbPaceMinPerKm ?? currentPaceMinPerKm
 
   // ── 2. Assess feasibility ─────────────────────────────────────────────────
-  const feasibility = assessFeasibility(anchorPace, targetPaceMinPerKm, deadlineWeeks)
+  const feasibility = assessFeasibility(anchorPace, targetPaceMinPerKm)
 
   // ── 3. Use adjusted target for THIS block's training paces ───────────────
   // If goal is unrealistic, train toward the adjusted (realistic) target
