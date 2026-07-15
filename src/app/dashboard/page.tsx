@@ -36,28 +36,20 @@ export default async function DashboardPage() {
     .order('logged_at', { ascending: false })
     .limit(20)
 
-  // ── Try to load saved plan from Supabase first ──────────────────────────
-  const { data: savedPlan } = await supabase
-    .from('training_plans')
-    .select('plan_data')
-    .eq('user_id', user.id)
-    .single()
-
-  // ── Fall back to generating a fresh plan if none saved yet ─────────────
-  const plan = savedPlan?.plan_data ?? generatePlan({
+  const plan = generatePlan({
     level:                baseline.derived_level,
     weeklyRunDays:        baseline.weekly_run_days,
     currentPaceMinPerKm:  baseline.current_pace_min_per_km,
     currentAvgDistanceKm: baseline.current_avg_distance_km,
     rpe:                  baseline.rpe,
-    ageYears:             baseline.age_years         ?? undefined,
-    currentHrEasy:        baseline.current_hr_easy   ?? undefined,
+    ageYears:             baseline.age_years          ?? undefined,
+    currentHrEasy:        baseline.current_hr_easy    ?? undefined,
     distance:             goal.distance,
     targetPaceMinPerKm:   goal.target_pace_min_per_km,
     deadlineWeeks:        goal.deadline_weeks,
-    targetHrBpm:          goal.target_hr_bpm         ?? undefined,
-    pbPaceMinPerKm:       baseline.pb_pace_min_per_km ?? undefined,  // ← NEW
-    pbHrBpm:              baseline.pb_hr_bpm          ?? undefined,  // ← NEW
+    targetHrBpm:          goal.target_hr_bpm          ?? undefined,
+    pbPaceMinPerKm:       baseline.pb_pace_min_per_km ?? undefined,
+    pbHrBpm:              baseline.pb_hr_bpm          ?? undefined,
   })
 
   const userName = user.user_metadata?.full_name?.split(' ')[0] ?? 'Runner'
