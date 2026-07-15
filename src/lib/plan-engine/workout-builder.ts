@@ -1,126 +1,110 @@
-import type { WorkoutSession, WorkoutType, HrZone } from './types'
+// src/lib/plan-engine/workout-builder.ts
 
-// ─── HR Zone Calculator ───────────────────────────────────────────────────────
-// Calculates personalized HR zones based on max HR (220 - age)
-// Falls back to 35 years old if age is not provided
-function calcMaxHr(ageYears?: number): number {
-  return 220 - (ageYears ?? 35)
-}
+import { WorkoutType, WorkoutSession, HrZone } from './types'
 
-function getHrZone(type: WorkoutType, ageYears?: number, targetHrBpm?: number): HrZone | undefined {
+// ── HR Zone calculator ────────────────────────────────────────────────────────
+export function getHrZone(
+  type:         WorkoutType,
+  ageYears:     number = 35,
+  targetHrBpm?: number,
+): HrZone | undefined {
   if (type === 'rest') return undefined
 
-  const maxHr = calcMaxHr(ageYears)
+  const maxHr = 220 - ageYears
 
-  const zones: Record<Exclude<WorkoutType, 'rest'>, HrZone> = {
-    easy: {
-      zone: 2,
-      name: 'Aerobic Base',
-      minBpm: Math.round(maxHr * 0.60),
-      maxBpm: Math.round(maxHr * 0.70),
-      description: 'Fat Burn / Aerobic Base',
-    },
-    long: {
-      zone: 2,
-      name: 'Aerobic Base',
-      minBpm: Math.round(maxHr * 0.60),
-      maxBpm: Math.round(maxHr * 0.70),
-      description: 'Fat Burn / Aerobic Base',
-    },
-    tempo: {
-      zone: 3,
-      name: 'Tempo',
-      minBpm: Math.round(maxHr * 0.70),
-      maxBpm: Math.round(maxHr * 0.80),
-      description: 'Aerobic Endurance',
-    },
-    interval: {
-      zone: 4,
-      name: 'Threshold',
-      minBpm: Math.round(maxHr * 0.80),
-      maxBpm: Math.round(maxHr * 0.90),
-      description: 'Lactate Threshold / Speed',
-    },
+  const ZONES: Record<number, { min: number; max: number; description: string }> = {
+    1: { min: 0.50, max: 0.60, description: 'Active Recovery' },
+    2: { min: 0.60, max: 0.70, description: 'Fat Burn / Aerobic Base' },
+    3: { min: 0.70, max: 0.80, description: 'Aerobic Endurance' },
+    4: { min: 0.80, max: 0.90, description: 'Lactate Threshold' },
+    5: { min: 0.90, max: 1.00, description: 'VO2 Max / Race Effort' },
   }
 
-  // If user has a targetHrBpm, cap easy/long zone max to their goal HR
-  const zone = zones[type as Exclude<WorkoutType, 'rest'>]
+  const zoneMap: Record<WorkoutType, number> = {
+    easy:     2,
+    long:     2,
+    tempo:    3,
+    interval: 4,
+    rest:     1,
+  }
+
+  const zoneNum = zoneMap[type]
+  const z       = ZONES[zoneNum]
+  let minBpm    = Math.round(maxHr * z.min)
+  let maxBpm    = Math.round(maxHr * z.max)
+
+  // Cap easy/long runs at targetHrBpm if provided (e.g. "stay under 130")
   if (targetHrBpm && (type === 'easy' || type === 'long')) {
-    return { ...zone, maxBpm: Math.min(zone.maxBpm, targetHrBpm) }
+    maxBpm = Math.min(maxBpm, targetHrBpm)
+    minBpm = Math.min(minBpm, maxBpm - 5)
   }
 
-  return zone
+  return { zone: zoneNum, minBpm, maxBpm, description: z.description }
 }
 
-// ─── Adaptive Description ─────────────────────────────────────────────────────
-// Description adapts based on the actual calculated pace
-// so users at walking pace get honest, encouraging context
-function getDescription(type: WorkoutType, paceMinPerKm: number): string {
+// ── HR-based description ──────────────────────────────────────────────────────
+// Descriptions are driven by HR zone — NOT pace thresholds
+function getDescription(
+  type:      WorkoutType,
+  hrZone?:   HrZone,
+  distanceKm?: number,
+): string {
   if (type === 'rest') {
     return 'Full rest or light stretching. Recovery is part of training.'
   }
 
-  const isWalkPace = paceMinPerKm >= 12.0
-  const isShuffle  = paceMinPerKm >= 9.5 && paceMinPerKm < 12.0
+  const zone = hrZone?.zone ?? 2
 
   switch (type) {
     case 'easy':
-      if (isWalkPace) {
-        return 'At your current fitness level, this easy effort will feel like a brisk walk — and that\'s completely fine. Focus on staying in Zone 2, not the speed.'
-      }
-      if (isShuffle) {
-        return 'Very easy jog. Keep the effort low — you should be able to hold a full conversation without gasping.'
-      }
-      return 'Comfortable conversational pace. You should be able to speak full sentences.'
+      if (zone <= 2) return 'Comfortable, conversational pace — you can speak full sentences without gasping. This is your aerobic base builder.'
+      if (zone === 3) return 'Moderate effort. You can speak a few words between breaths. Slightly faster than your true easy pace — focus on keeping HR in Zone 2.'
+      return 'Effort feels hard for an easy run — slow down until you can hold a full conversation.'
 
     case 'long':
-      if (isWalkPace) {
-        return 'A longer brisk walk to build your aerobic base. Time on feet matters more than speed here. Stay relaxed and enjoy it.'
-      }
-      if (isShuffle) {
-        return 'Slow and steady jog. Build endurance, not speed. If you need to walk, walk — just keep moving.'
-      }
-      return 'Slow and steady. Build endurance. Do not worry about pace.'
+      if (zone <= 2) return `Long effort at conversational pace. Time on feet matters more than speed. Stay relaxed — if you can\'t speak comfortably, slow down.`
+      return 'Slow down to keep this truly aerobic. Long runs build endurance through duration, not intensity.'
 
     case 'tempo':
-      return 'Comfortably hard. Sustainable but challenging for 20–40 min. You can speak a few words, not full sentences.'
+      if (zone === 3) return 'Comfortably hard. Sustainable but challenging for 20–40 min. You can speak a few words, not full sentences.'
+      if (zone === 4) return 'Hard, controlled effort at lactate threshold. Breathing is heavy — single words only. Hold this for 15–25 min max.'
+      return 'Push the pace — this is your race-effort work. Short reps with full recovery between.'
 
     case 'interval':
-      return 'Hard effort repeats with recovery jogs in between. Push hard, then recover fully before the next rep.'
+      if (zone === 4) return 'Hard repeats near your lactate threshold. Run fast, recover fully between reps. Quality over quantity.'
+      return 'Maximum effort intervals. Short, sharp, and fast. Full recovery between each rep — you should feel ready to go again.'
 
     default:
-      return ''
+      return 'Follow your training plan for this session.'
   }
 }
 
-// ─── Main Builder ─────────────────────────────────────────────────────────────
-// NOTE: basePaceMinPerKm is now the FINAL calculated pace from generate-plan.ts
-// We no longer multiply here — that was causing the double-multiply bug
+// ── Session builder ───────────────────────────────────────────────────────────
 export function buildSession(
-  type: WorkoutType,
+  type:          WorkoutType,
   baseDistanceKm: number,
-  basePaceMinPerKm: number,
-  ageYears?: number,
-  targetHrBpm?: number,
+  targetPace:    number,
+  ageYears?:     number,
+  targetHrBpm?:  number,
 ): WorkoutSession {
-
-  // ✅ FIXED: No more pace multiplier here — pace comes pre-calculated from generate-plan.ts
-  const distMap: Record<WorkoutType, number> = {
-    easy:     baseDistanceKm,
-    long:     baseDistanceKm * 1.5,
-    tempo:    baseDistanceKm * 0.8,
-    interval: baseDistanceKm * 0.7,
+  const distanceMultipliers: Record<WorkoutType, number> = {
+    easy:     0.8,
+    tempo:    0.6,
+    long:     1.5,
+    interval: 0.5,
     rest:     0,
   }
 
-  const finalPace = type === 'rest' ? 0 : basePaceMinPerKm
-  const finalDist = Math.round(distMap[type] * 10) / 10
+  const rawDist  = baseDistanceKm * distanceMultipliers[type]
+  const distanceKm = Math.round(rawDist * 10) / 10
+  const hrZone   = getHrZone(type, ageYears, targetHrBpm)
+  const description = getDescription(type, hrZone, distanceKm)
 
   return {
     type,
-    distanceKm:         finalDist,
-    targetPaceMinPerKm: Math.round(finalPace * 100) / 100,
-    description:        getDescription(type, finalPace),
-    hrZone:             getHrZone(type, ageYears, targetHrBpm),
+    distanceKm,
+    targetPaceMinPerKm: type === 'rest' ? 0 : Math.round(targetPace * 100) / 100,
+    description,
+    hrZone,
   }
 }

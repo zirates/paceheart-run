@@ -42,7 +42,6 @@ const WORKOUT_COLORS: Record<string, string> = {
   rest:     'bg-gray-100 text-gray-500 border-gray-200',
 }
 
-// ✅ NEW: HR zone badge colors — each zone gets its own pill color
 const HR_ZONE_COLORS: Record<number, string> = {
   1: 'bg-gray-200 text-gray-600',
   2: 'bg-green-200 text-green-800',
@@ -55,18 +54,26 @@ const WORKOUT_ICONS: Record<string, string> = {
   easy: '🟢', tempo: '🟠', long: '🔵', interval: '🟣', rest: '⬜',
 }
 
+// ── Feasibility banner config ─────────────────────────────────────────────────
+const FEASIBILITY_BANNER: Record<string, { bg: string; icon: string }> = {
+  on_track:    { bg: 'bg-green-50 border-green-200 text-green-800',   icon: '🎉' },
+  reachable:   { bg: 'bg-blue-50 border-blue-200 text-blue-800',      icon: '💪' },
+  ambitious:   { bg: 'bg-yellow-50 border-yellow-200 text-yellow-800', icon: '🔥' },
+  unrealistic: { bg: 'bg-orange-50 border-orange-200 text-orange-800', icon: '🎯' },
+}
+
 export default function DashboardClient({ plan, logs, userName, goal, baseline }: Props) {
   const [activeWeek, setActiveWeek] = useState(0)
   const [loggingOut, setLoggingOut] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
-  const week = plan.weeks[activeWeek]
+  const week       = plan.weeks[activeWeek]
   const totalWeeks = plan.weeks.length
 
   // Progress stats
   const totalRuns = logs.length
-  const avgPace = logs.length > 0
+  const avgPace   = logs.length > 0
     ? logs.reduce((s, l) => s + (l.pace_min_per_km ?? 0), 0) / logs.length
     : null
   const avgHr = logs.filter(l => l.avg_hr_bpm).length > 0
@@ -74,11 +81,15 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
       logs.filter(l => l.avg_hr_bpm).length
     : null
 
-  // PB from baseline
   const pbPace: number | null = baseline.pb_pace_min_per_km ?? null
   const pbHr:   number | null = baseline.pb_hr_bpm          ?? null
 
-  // ── Logout handler ──────────────────────────────────────────────────────
+  // Feasibility
+  const feasibility = plan.feasibility
+  const bannerStyle = feasibility
+    ? FEASIBILITY_BANNER[feasibility.status]
+    : null
+
   async function handleLogout() {
     setLoggingOut(true)
     await supabase.auth.signOut()
@@ -97,12 +108,8 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
             <span className="font-bold text-brand-700">PaceHeart</span>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/log" className="btn-primary text-sm py-2 px-4">
-              + Log Run
-            </Link>
-            <Link href="/onboarding" className="text-sm text-gray-500 hover:text-gray-700">
-              Edit Profile
-            </Link>
+            <Link href="/log" className="btn-primary text-sm py-2 px-4">+ Log Run</Link>
+            <Link href="/onboarding" className="text-sm text-gray-500 hover:text-gray-700">Edit Profile</Link>
             <button
               onClick={handleLogout}
               disabled={loggingOut}
@@ -134,8 +141,7 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
             {pbPace && (
               <div className="bg-white/20 rounded-xl px-4 py-2 inline-flex items-center gap-2 text-sm">
                 <span>⚡</span>
-                <span>
-                  PB: <strong>{formatPace(pbPace)} /km</strong>
+                <span>PB: <strong>{formatPace(pbPace)} /km</strong>
                   {pbHr && <span className="opacity-80"> · {pbHr} bpm</span>}
                 </span>
               </div>
@@ -148,13 +154,41 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
           </div>
         </div>
 
+        {/* ── Coach Feasibility Banner ── */}
+        {feasibility && bannerStyle && (
+          <div className={`border rounded-2xl px-5 py-4 ${bannerStyle.bg}`}>
+            <div className="flex items-start gap-3">
+              <span className="text-2xl mt-0.5">{bannerStyle.icon}</span>
+              <div className="flex-1">
+                <p className="font-semibold text-sm mb-1">Coach's Note</p>
+                <p className="text-sm leading-relaxed">{feasibility.coachNote}</p>
+
+                {/* Show milestone progress only when goal needs multiple blocks */}
+                {(feasibility.status === 'unrealistic' || feasibility.status === 'ambitious') && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="bg-white/60 rounded-lg px-3 py-1.5 text-xs font-medium">
+                      🏁 This block target: <strong>{formatPace(feasibility.adjustedTargetPace)} /km</strong>
+                    </div>
+                    <div className="bg-white/60 rounded-lg px-3 py-1.5 text-xs font-medium">
+                      🎯 Dream goal: <strong>{formatPace(feasibility.dreamTargetPace)} /km</strong>
+                    </div>
+                    <div className="bg-white/60 rounded-lg px-3 py-1.5 text-xs font-medium">
+                      📅 Est. journey: <strong>~{feasibility.blocksNeeded * 8} weeks</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Row */}
         <div className={`grid gap-4 ${pbPace ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
           {[
-            { label: 'Runs Logged', value: totalRuns.toString(),                           icon: '🏃' },
-            { label: 'Avg Pace',    value: avgPace ? formatPace(avgPace) : '--:--',        icon: '⏱️' },
-            { label: 'Avg HR',      value: avgHr ? `${Math.round(avgHr)} bpm` : '-- bpm', icon: '❤️' },
-            { label: 'Weeks Left',  value: `${totalWeeks - activeWeek}`,                   icon: '📅' },
+            { label: 'Runs Logged', value: totalRuns.toString(),                            icon: '🏃' },
+            { label: 'Avg Pace',    value: avgPace ? formatPace(avgPace) : '--:--',         icon: '⏱️' },
+            { label: 'Avg HR',      value: avgHr ? `${Math.round(avgHr)} bpm` : '-- bpm',  icon: '❤️' },
+            { label: 'Weeks Left',  value: `${totalWeeks - activeWeek}`,                    icon: '📅' },
             ...(pbPace ? [{ label: 'Personal Best', value: `${formatPace(pbPace)} /km`, icon: '⚡' }] : []),
           ].map(s => (
             <div key={s.label} className="card text-center">
@@ -169,9 +203,7 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">Training Plan</h2>
-            <span className="text-sm text-gray-500">
-              Week {activeWeek + 1} of {totalWeeks}
-            </span>
+            <span className="text-sm text-gray-500">Week {activeWeek + 1} of {totalWeeks}</span>
           </div>
 
           {/* Week Selector */}
@@ -181,9 +213,7 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
                 key={i}
                 onClick={() => setActiveWeek(i)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  i === activeWeek
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  i === activeWeek ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 W{i + 1}
@@ -200,11 +230,7 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
           {/* Sessions */}
           <div className="space-y-3">
             {week.sessions.map((session, i) => (
-              <div
-                key={i}
-                className={`border rounded-xl px-4 py-3 ${WORKOUT_COLORS[session.type]}`}
-              >
-                {/* ── Row 1: title + distance/pace ── */}
+              <div key={i} className={`border rounded-xl px-4 py-3 ${WORKOUT_COLORS[session.type]}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span>{WORKOUT_ICONS[session.type]}</span>
@@ -217,19 +243,15 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
                   </div>
                 </div>
 
-                {/* ── Row 2: HR Zone badge (NEW) ── */}
                 {session.hrZone && (
                   <div className="mt-1.5 flex items-center gap-1.5">
-                    <span
-                      className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${HR_ZONE_COLORS[session.hrZone.zone]}`}
-                    >
+                    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${HR_ZONE_COLORS[session.hrZone.zone]}`}>
                       ❤️ Zone {session.hrZone.zone} · {session.hrZone.minBpm}–{session.hrZone.maxBpm} bpm
                     </span>
                     <span className="text-xs opacity-60">{session.hrZone.description}</span>
                   </div>
                 )}
 
-                {/* ── Row 3: adaptive description ── */}
                 <p className="text-xs mt-1.5 opacity-75">{session.description}</p>
               </div>
             ))}
@@ -240,9 +262,7 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">Recent Runs</h2>
-            <Link href="/log" className="text-sm text-brand-600 hover:underline font-medium">
-              + Log a run
-            </Link>
+            <Link href="/log" className="text-sm text-brand-600 hover:underline font-medium">+ Log a run</Link>
           </div>
 
           {logs.length === 0 ? (
@@ -250,17 +270,12 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
               <div className="text-4xl mb-3">🏃</div>
               <p className="font-medium">No runs logged yet</p>
               <p className="text-sm mt-1">Log your first run to start tracking progress!</p>
-              <Link href="/log" className="btn-primary inline-block mt-4 text-sm py-2 px-6">
-                Log First Run →
-              </Link>
+              <Link href="/log" className="btn-primary inline-block mt-4 text-sm py-2 px-6">Log First Run →</Link>
             </div>
           ) : (
             <div className="space-y-2">
               {logs.slice(0, 5).map((log, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0"
-                >
+                <div key={i} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
                   <div>
                     <div className="font-medium text-sm">
                       {new Date(log.logged_at).toLocaleDateString('en-US', {
@@ -270,9 +285,7 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
                     <div className="text-xs text-gray-500">{log.distance_km} km</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold text-sm">
-                      {formatPace(log.pace_min_per_km)} /km
-                    </div>
+                    <div className="font-semibold text-sm">{formatPace(log.pace_min_per_km)} /km</div>
                     {log.avg_hr_bpm && (
                       <div className="text-xs text-red-500">❤️ {log.avg_hr_bpm} bpm</div>
                     )}
