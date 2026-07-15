@@ -42,6 +42,15 @@ const WORKOUT_COLORS: Record<string, string> = {
   rest:     'bg-gray-100 text-gray-500 border-gray-200',
 }
 
+// ✅ NEW: HR zone badge colors — each zone gets its own pill color
+const HR_ZONE_COLORS: Record<number, string> = {
+  1: 'bg-gray-200 text-gray-600',
+  2: 'bg-green-200 text-green-800',
+  3: 'bg-yellow-200 text-yellow-800',
+  4: 'bg-orange-200 text-orange-800',
+  5: 'bg-red-200 text-red-800',
+}
+
 const WORKOUT_ICONS: Record<string, string> = {
   easy: '🟢', tempo: '🟠', long: '🔵', interval: '🟣', rest: '⬜',
 }
@@ -94,7 +103,6 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
             <Link href="/onboarding" className="text-sm text-gray-500 hover:text-gray-700">
               Edit Profile
             </Link>
-            {/* ── NEW: Logout button ─────────────────────────────────── */}
             <button
               onClick={handleLogout}
               disabled={loggingOut}
@@ -143,10 +151,10 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
         {/* Stats Row */}
         <div className={`grid gap-4 ${pbPace ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
           {[
-            { label: 'Runs Logged', value: totalRuns.toString(),                          icon: '🏃' },
-            { label: 'Avg Pace',    value: avgPace ? formatPace(avgPace) : '--:--',       icon: '⏱️' },
+            { label: 'Runs Logged', value: totalRuns.toString(),                           icon: '🏃' },
+            { label: 'Avg Pace',    value: avgPace ? formatPace(avgPace) : '--:--',        icon: '⏱️' },
             { label: 'Avg HR',      value: avgHr ? `${Math.round(avgHr)} bpm` : '-- bpm', icon: '❤️' },
-            { label: 'Weeks Left',  value: `${totalWeeks - activeWeek}`,                  icon: '📅' },
+            { label: 'Weeks Left',  value: `${totalWeeks - activeWeek}`,                   icon: '📅' },
             ...(pbPace ? [{ label: 'Personal Best', value: `${formatPace(pbPace)} /km`, icon: '⚡' }] : []),
           ].map(s => (
             <div key={s.label} className="card text-center">
@@ -196,6 +204,7 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
                 key={i}
                 className={`border rounded-xl px-4 py-3 ${WORKOUT_COLORS[session.type]}`}
               >
+                {/* ── Row 1: title + distance/pace ── */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span>{WORKOUT_ICONS[session.type]}</span>
@@ -207,7 +216,21 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
                     )}
                   </div>
                 </div>
-                <p className="text-xs mt-1 opacity-75">{session.description}</p>
+
+                {/* ── Row 2: HR Zone badge (NEW) ── */}
+                {session.hrZone && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span
+                      className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${HR_ZONE_COLORS[session.hrZone.zone]}`}
+                    >
+                      ❤️ Zone {session.hrZone.zone} · {session.hrZone.minBpm}–{session.hrZone.maxBpm} bpm
+                    </span>
+                    <span className="text-xs opacity-60">{session.hrZone.description}</span>
+                  </div>
+                )}
+
+                {/* ── Row 3: adaptive description ── */}
+                <p className="text-xs mt-1.5 opacity-75">{session.description}</p>
               </div>
             ))}
           </div>

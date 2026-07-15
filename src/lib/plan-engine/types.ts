@@ -2,6 +2,15 @@ export type RunnerLevel = 'beginner' | 'intermediate' | 'advanced'
 
 export type WorkoutType = 'easy' | 'tempo' | 'long' | 'interval' | 'rest'
 
+// ─── HR Zone ─────────────────────────────────────────────────────────────────
+export interface HrZone {
+  zone: number          // 1–5
+  name: string          // e.g. "Aerobic Base"
+  minBpm: number
+  maxBpm: number
+  description: string   // e.g. "Fat Burn / Aerobic Base"
+}
+
 export interface UserBaseline {
   level: RunnerLevel
   currentPaceMinPerKm: number
@@ -10,8 +19,8 @@ export interface UserBaseline {
   rpe: number
   ageYears?: number
   currentHrEasy?: number
-  pbPaceMinPerKm?: number   // ← NEW: personal best pace
-  pbHrBpm?: number          // ← NEW: HR during personal best
+  pbPaceMinPerKm?: number
+  pbHrBpm?: number
 }
 
 export interface GoalConfig {
@@ -26,6 +35,7 @@ export interface WorkoutSession {
   distanceKm: number
   targetPaceMinPerKm: number
   description: string
+  hrZone?: HrZone        // ← NEW optional, won't break existing UI
 }
 
 export interface TrainingWeek {
