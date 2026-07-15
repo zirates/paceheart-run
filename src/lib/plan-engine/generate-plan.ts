@@ -14,7 +14,7 @@ const IMPROVEMENT_PER_BLOCK = 0.07  // 7% pace improvement per block
 export function assessFeasibility(
   anchorPace:   number,   // PB pace (most reliable)
   targetPace:   number,   // dream goal
-  deadlineWeeks?: number,
+  _deadlineWeeks?: number,
 ): FeasibilityReport {
   const gapPercent = ((anchorPace - targetPace) / anchorPace) * 100
   const blocksNeeded = gapPercent <= 0
