@@ -160,7 +160,7 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
             <div className="flex items-start gap-3">
               <span className="text-2xl mt-0.5">{bannerStyle.icon}</span>
               <div className="flex-1">
-                <p className="font-semibold text-sm mb-1">Coach's Note</p>
+                <p className="font-semibold text-sm mb-1">Coach&apos;s Note</p>
                 <p className="text-sm leading-relaxed">{feasibility.coachNote}</p>
 
                 {/* Show milestone progress only when goal needs multiple blocks */}

@@ -47,7 +47,6 @@ export function getHrZone(
 function getDescription(
   type:      WorkoutType,
   hrZone?:   HrZone,
-  distanceKm?: number,
 ): string {
   if (type === 'rest') {
     return 'Full rest or light stretching. Recovery is part of training.'
@@ -98,7 +97,7 @@ export function buildSession(
   const rawDist  = baseDistanceKm * distanceMultipliers[type]
   const distanceKm = Math.round(rawDist * 10) / 10
   const hrZone   = getHrZone(type, ageYears, targetHrBpm)
-  const description = getDescription(type, hrZone, distanceKm)
+  const description = getDescription(type, hrZone)
 
   return {
     type,
