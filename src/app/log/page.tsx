@@ -5,6 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { regeneratePlanAfterLog } from '@/lib/plan-engine/regenerate-plan'
+import { getHrZone } from '@/lib/plan-engine/workout-builder'
+import { evaluateHrFeedback, HrFeedback } from '@/lib/plan-engine/hr-feedback'
+import type { WorkoutType } from '@/lib/plan-engine/types'
 
 export default function LogRunPage() {
   const router = useRouter()
@@ -12,6 +15,7 @@ export default function LogRunPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [feedback, setFeedback] = useState<HrFeedback | null>(null)
 
   // Form fields
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
@@ -21,6 +25,7 @@ export default function LogRunPage() {
   const [hr, setHr] = useState('')
   const [notes, setNotes] = useState('')
   const [feeling, setFeeling] = useState('3')
+  const [workoutType, setWorkoutType] = useState<WorkoutType>('easy') // ← NEW
 
   function calcPace() {
     if (!distance || !duration) return
@@ -58,6 +63,7 @@ export default function LogRunPage() {
       avg_hr_bpm:       hr ? Number(hr) : null,
       perceived_effort: Number(feeling),
       notes:            notes || null,
+      workout_type:     workoutType,   // ← NEW
     })
 
     if (logError) {
@@ -66,20 +72,61 @@ export default function LogRunPage() {
       return
     }
 
+    // ── NEW: Compute HR feedback (self-contained, no plan-matching needed) ──
+    if (hr && pace) {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      const { data: baseline } = await supabase
+        .from('user_baselines')
+        .select('age_years')
+        .eq('user_id', authUser?.id)
+        .single()
+      const { data: goal } = await supabase
+        .from('goals')
+        .select('target_hr_bpm, target_pace_min_per_km')
+        .eq('user_id', authUser?.id)
+        .single()
+
+      const hrZone = getHrZone(workoutType, baseline?.age_years ?? 35, goal?.target_hr_bpm ?? undefined)
+
+      if (hrZone) {
+        const result = evaluateHrFeedback({
+          workoutType,
+          loggedHr:            Number(hr),
+          loggedPaceMinPerKm:  parsePaceToNum(pace),
+          targetPaceMinPerKm:  goal?.target_pace_min_per_km ?? parsePaceToNum(pace),
+          hrZone,
+        })
+        setFeedback(result)
+      }
+    }
+
     await regeneratePlanAfterLog(user.id)
 
     setSuccess(true)
-    router.refresh()                                    // ← ADD
-    setTimeout(() => router.push('/dashboard'), 1800)  // ← bump to 1800ms
+    router.refresh()
+    setTimeout(() => router.push('/dashboard'), feedback ? 3200 : 1800) // give time to read feedback
   }
 
   if (success) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-brand-50 to-white flex items-center justify-center">
-        <div className="text-center">
+      <main className="min-h-screen bg-gradient-to-br from-brand-50 to-white flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
           <div className="text-6xl mb-4">🎉</div>
           <h2 className="text-2xl font-bold text-gray-800">Run Logged!</h2>
-          <p className="text-gray-500 mt-2">Redirecting to dashboard...</p>
+
+          {/* ── NEW: HR Feedback message ── */}
+          {feedback && feedback.message && (
+            <div className={`mt-4 text-sm px-4 py-3 rounded-xl border text-left ${
+              feedback.status === 'warning'      ? 'bg-orange-50 border-orange-200 text-orange-700' :
+              feedback.status === 'mild_warning'  ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
+              feedback.status === 'good_sign'     ? 'bg-green-50 border-green-200 text-green-700' :
+                                                     'bg-gray-50 border-gray-200 text-gray-600'
+            }`}>
+              {feedback.message}
+            </div>
+          )}
+
+          <p className="text-gray-500 mt-3 text-sm">Redirecting to dashboard...</p>
         </div>
       </main>
     )
@@ -106,6 +153,32 @@ export default function LogRunPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+
+            {/* ── NEW: Workout Type ── */}
+            <div>
+              <label className="label">Workout Type</label>
+              <div className="flex gap-2">
+                {[
+                  { v: 'easy',     label: '🟢 Easy' },
+                  { v: 'tempo',    label: '🟠 Tempo' },
+                  { v: 'long',     label: '🔵 Long' },
+                  { v: 'interval', label: '🟣 Interval' },
+                ].map(t => (
+                  <button
+                    key={t.v}
+                    type="button"
+                    onClick={() => setWorkoutType(t.v as WorkoutType)}
+                    className={`flex-1 py-2 rounded-xl border text-sm transition-colors ${
+                      workoutType === t.v
+                        ? 'border-brand-500 bg-brand-50 text-brand-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Date */}
             <div>
