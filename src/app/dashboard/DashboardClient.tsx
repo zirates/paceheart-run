@@ -300,7 +300,7 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
               </div>
               <Link
                 href={`/log/${log.id}`}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-brand-600 p-1.5 -mr-1"
+                className="text-gray-300 hover:text-brand-600 transition-colors p-1.5 -mr-1"
                 title="Edit run"
               >
                 ✏️
