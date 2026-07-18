@@ -8,10 +8,12 @@ import { formatPace } from '@/lib/utils'
 import type { TrainingPlan } from '@/lib/plan-engine/types'
 
 interface RunLog {
+  id: string
   logged_at: string
   distance_km: number
   pace_min_per_km: number
   avg_hr_bpm?: number
+  workout_type?: string
 }
 
 interface Goal {
@@ -274,24 +276,38 @@ export default function DashboardClient({ plan, logs, userName, goal, baseline }
             </div>
           ) : (
             <div className="space-y-2">
-              {logs.slice(0, 5).map((log, i) => (
-                <div key={i} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-                  <div>
-                    <div className="font-medium text-sm">
-                      {new Date(log.logged_at).toLocaleDateString('en-US', {
-                        weekday: 'short', month: 'short', day: 'numeric',
-                      })}
-                    </div>
-                    <div className="text-xs text-gray-500">{log.distance_km} km</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-sm">{formatPace(log.pace_min_per_km)} /km</div>
-                    {log.avg_hr_bpm && (
-                      <div className="text-xs text-red-500">❤️ {log.avg_hr_bpm} bpm</div>
+              {logs.slice(0, 5).map((log) => (
+                <div key={log.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 group">
+                  <div className="flex items-center gap-2.5">
+                    {log.workout_type && (
+                      <span className="text-lg">{WORKOUT_ICONS[log.workout_type] ?? '🏃'}</span>
                     )}
+                  <div>
+                      <div className="font-medium text-sm">
+                        {new Date(log.logged_at).toLocaleDateString('en-US', {
+                          weekday: 'short', month: 'short', day: 'numeric',
+                        })}
                   </div>
+                  <div className="text-xs text-gray-500">{log.distance_km} km</div>
                 </div>
-              ))}
+              </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="font-semibold text-sm">{formatPace(log.pace_min_per_km)} /km</div>
+                {log.avg_hr_bpm && (
+                  <div className="text-xs text-red-500">❤️ {log.avg_hr_bpm} bpm</div>
+                )}
+              </div>
+              <Link
+                href={`/log/${log.id}`}
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-brand-600 p-1.5 -mr-1"
+                title="Edit run"
+              >
+                ✏️
+              </Link>
+            </div>
+          </div>
+        ))}
             </div>
           )}
         </div>
